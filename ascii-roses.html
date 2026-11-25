@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> Анимка для полинки</title>
+</head>
+<body style="margin:0">
+<!-- Для встраивания скопируйте этот блок до комментария «Конец блока». -->
+<style>
+  .ascii-roses {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 420px;
+    height: 100svh;
+    overflow: hidden;
+    isolation: isolate;
+    background: #100d16;
+    background: radial-gradient(ellipse at 50% 38%, #211727, #100d16 70%);
+    color: #ffdfeb;
+  }
+  .ascii-roses canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .ascii-roses__caption {
+    position: absolute;
+    inset-inline: 14px;
+    bottom: max(7%, env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    text-align: center;
+    pointer-events: none;
+  }
+  .ascii-roses__caption::before {
+    content: "";
+    display: block;
+    width: clamp(64px, 16vw, 156px);
+    height: 1px;
+    margin: 0 auto clamp(10px, 2vh, 18px);
+    background: linear-gradient(90deg, transparent, #e8a9c4, transparent);
+    opacity: 0;
+    transform: scaleX(.4);
+    transition: opacity .9s ease, transform 1.3s ease;
+  }
+  .ascii-roses__caption h1 {
+    margin: 0;
+    padding: .14em 0;
+    transform: translateY(110%);
+    opacity: 0;
+    transition: transform 1.3s cubic-bezier(.22,.75,.24,1), opacity .9s ease;
+    font: 400 clamp(27px, 5.5vw, 64px)/1.12 Georgia, serif;
+    text-wrap: balance;
+  }
+  .ascii-roses[data-bloomed] h1 { transform: translateY(0); opacity: 1; }
+  .ascii-roses[data-bloomed] .ascii-roses__caption::before {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ascii-roses__caption h1,
+    .ascii-roses__caption::before { transition: none; }
+  }
+</style>
+
+<section class="ascii-roses" aria-label="Букет бело-розовых роз">
+  <canvas aria-hidden="true"></canvas>
+  <div class="ascii-roses__caption"><h1>Любимая полинка ♥ </h1></div>
+</section>
+
+<script>
+(() => {
+  const section = document.currentScript.previousElementSibling;
+  const canvas = section.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const TAU = Math.PI * 2;
+  const { sin, cos } = Math;
+  const ease = (x) => { x = Math.max(0, Math.min(1, x)); return x*x*(3-2*x); };
+
+  // Секунды от начала анимации.
+  const timing = { buds: 3.05, open: 4.45, stars: 7.55, greeting: 8.85, swayPeriod: 15 };
+  const roses = [
+    { x: -108, y: -65, z: -18, size: .86, tilt: .44, phase: .3 },
+    { x: -47, y: -127, z: 10, size: 1.01, tilt: .42, phase: 1 },
+    { x: 42, y: -144, z: -15, size: 1.08, tilt: .46, phase: 2.6 },
+    { x: 109, y: -66, z: 0, size: .88, tilt: .55, phase: 3.6 },
+    { x: 4, y: -51, z: 67, size: 1.12, tilt: .36, phase: 5 },
+    { x: -138, y: -13, z: 17, size: .70, tilt: .48, phase: 4.4 },
+    { x: 136, y: -9, z: 20, size: .73, tilt: .38, phase: 1.8 }
+  ];
+
+  let seed = 923;
+  function random() {
+    seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  }
+
+  const stars = Array.from({length: 205}, () => ({
+    x: random(), y: random(), phase: random()*TAU,
+    radius: .35+random()**3*1.05, delay: random()*1.6
+  }));
+
+  const petals = [];
+  for (let ring = 0; ring < 5; ring++) {
+    const count = [7, 7, 6, 5, 4][ring];
+    for (let petal = 0; petal < count; petal++) {
+      const angle = TAU*petal/count + ring*1.06;
+      for (let i = 1; i <= 13; i++) {
+        const u = i/13;
+        for (let j = -5; j <= 5; j++) {
+          const v = j/5;
+          petals.push({
+            ring, u, v, ca: cos(angle), sa: sin(angle),
+            width: sin(Math.PI*u*.86)**.85 * (1-.125*ring),
+            shade: random()
+          });
+        }
+      }
+    }
+  }
+
+  function branch(rose, t) {
+    return [
+      10 + (rose.x-10)*t**1.24 + 9*sin(Math.PI*t)*sin(rose.phase),
+      190 + (rose.y-190)*t,
+      rose.z*t
+    ];
+  }
+  const leaves = [
+    [0,.34,-1,75], [0,.63,-1,56], [1,.56,-1,84], [1,.42,1,62],
+    [2,.50,1,86], [2,.68,-1,67], [3,.37,1,87], [3,.70,1,62],
+    [4,.28,-1,82], [4,.58,1,65],
+    [5,.57,-1,55], [6,.59,1,56]
+  ].map(([rose, at, side, length], i) => ({
+    root: branch(roses[rose], at), at, side, length, phase: i*.9
+  }));
+
+  const glyphs = '.:-=+*#%@';
+  const palettes = [
+    ['#365c46','#477656','#559365','#69ad78','#88cf90','#afe5a1'],
+    ['#66304e','#873958','#ad4c72','#d5658c','#f084aa','#ffafca'],
+    ['#99657c','#bf8ca1','#deaebd','#f5cddd','#ffe8ee','#fff8ef']
+  ];
+  let width, height, scale, cellX, cellY, ratio, columns, rows;
+  let frame = null;
+  let elapsed = 0;
+  let lastTime = null;
+
+  function measure() {
+    const box = section.getBoundingClientRect();
+    width = box.width;
+    height = box.height;
+    ratio = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(width*ratio));
+    canvas.height = Math.max(1, Math.round(height*ratio));
+    scale = Math.min(width/390, height/530, 1.85);
+    cellX = Math.max(3.25, 4.25*scale);
+    cellY = Math.max(4.4, 5.8*scale);
+    columns = Math.max(1, Math.ceil(width/cellX));
+    rows = Math.max(1, Math.ceil(height/cellY));
+  }
+
+  function draw(t) {
+    if (!width || !height) return;
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    ctx.clearRect(0,0,width,height);
+    const alive = ease((t-timing.stars)/2);
+    const sway = TAU*Math.max(0,t-timing.stars)/timing.swayPeriod;
+    for (const star of stars) {
+      const fade = ease((t-timing.stars-star.delay)/1.6);
+      if (!fade) continue;
+      ctx.globalAlpha = fade*(.25+.56*(.5+.5*sin(t*.77+star.phase)));
+      ctx.fillStyle = '#f5d9ee';
+      ctx.beginPath();
+      ctx.arc(star.x*width, star.y*height, star.radius, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    const reveal = ease((t-timing.greeting)/1.3);
+    const yaw = alive*.30*sin(sway);
+    const originY = height*.50 - reveal*Math.min(51*scale, height*.095);
+    const zoom = scale*(1-.09*reveal);
+    const ca = cos(yaw), sa = sin(yaw);
+    const cells = new Map();
+
+    function plot(x, y, z, palette, tone) {
+      const rotatedX = x*ca + z*sa;
+      const depth = z*ca - x*sa;
+      const perspective = 650/(650-depth);
+      const drift = alive*6*sin(sway)*(190-y)/350;
+      const col = Math.round((width*.5+(rotatedX+drift)*zoom*perspective)/cellX);
+      const row = Math.round((originY+y*zoom*perspective)/cellY);
+      if (col < 0 || col >= columns || row < 0 || row >= rows) return;
+      const key = row*columns+col;
+      const old = cells.get(key);
+      if (!old || depth > old.depth) cells.set(key, {col,row,depth,palette,tone});
+    }
+
+    for (let index = 0; index < roses.length; index++) {
+      const rose = roses[index];
+      const grow = ease((t-.11*index)/2.35);
+      for (let i = 0; i < Math.floor(grow*112); i++) {
+        const [x,y,z] = branch(rose,i/111);
+        plot(x,y,z,0,3);
+        plot(x-2.8,y,z-1,0,1);
+        plot(x+2.4,y,z-1,0,2);
+      }
+
+      const bud = ease((t-timing.buds-.08*index)/.90);
+      if (!bud) continue;
+      const open = ease((t-timing.open)/3.1);
+      const nod = rose.tilt + .37*open + alive*.085*sin(sway*1.5+rose.phase);
+      const turn = rose.phase + alive*.12*sin(sway+rose.phase);
+      const ct = cos(turn), st = sin(turn), cn = cos(nod), sn = sin(nod);
+
+      for (const p of petals) {
+        const {ring,u,v,width: petalWidth,shade,ca: cp,sa: sp} = p;
+        const closedR = (8+2.2*(4-ring))*sin(u*2.53) + 3.1*u;
+        const openR = 6+ring*.7+(46-ring*7.05)*u;
+        const r = closedR+(openR-closedR)*open;
+        const fan = v*petalWidth*(6+15*open);
+        const hClosed = (39+ring*2)*u - 3*v*v;
+        const hOpen = (13+ring*4)*sin(u*1.76) - (7-ring)*u**4 + 6*v*v*u;
+        const h = hClosed+(hOpen-hClosed)*open;
+        const px = (r*cp-fan*sp);
+        const py = (r*sp+fan*cp);
+        const x = px*ct-py*st;
+        const y = px*st+py*ct;
+        const size = rose.size*bud;
+        const pale = u + .11*shade > .79-ring*.018;
+        const tone = Math.min(5,Math.floor(1+4*(.47*u+.26*(1-v*v)+.27*shade)));
+        plot(rose.x+size*x, rose.y+size*(y*sn-h*cn),
+          rose.z+size*(y*cn+h*sn), pale ? 2 : 1, tone);
+      }
+    }
+
+    for (const leaf of leaves) {
+      const grow = ease((t-.72-1.38*leaf.at-(leaf.phase%1)*.24)/1.07);
+      if (!grow) continue;
+      for (let i = 0; i <= 24; i++) {
+        const u = i/24;
+        const radius = 14*sin(Math.PI*u)**.8;
+        for (let j = -4; j <= 4; j++) {
+          const v = j/4;
+          const [x,y,z] = leaf.root;
+          const flick = alive*3*sin(sway+leaf.phase)*u;
+          plot(x+leaf.side*leaf.length*u*grow,
+            y+grow*(-leaf.length*.52*u+radius*v+flick),
+            z+grow*(13*sin(Math.PI*u)-6*v*v),
+            0, Math.round(4-2.9*Math.abs(v)+(j===0 ? 1 : 0)));
+        }
+      }
+    }
+
+    ctx.font = Math.max(5.2,cellY*1.08) + 'px ui-monospace, Menlo, monospace';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    for (const {col,row,palette,tone} of cells.values()) {
+      ctx.fillStyle = palettes[palette][tone];
+      ctx.fillText(glyphs[tone+2],col*cellX,row*cellY);
+    }
+    if (t >= timing.greeting) section.dataset.bloomed = '';
+    else delete section.dataset.bloomed;
+  }
+
+  function tick(now) {
+    frame = null;
+    if (lastTime !== null) elapsed += (now-lastTime)/1000;
+    lastTime = now;
+    draw(elapsed);
+    frame = requestAnimationFrame(tick);
+  }
+
+  function sync() {
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    lastTime = null;
+    if (motion.matches) draw(timing.greeting+2);
+    else if (!document.hidden) frame = requestAnimationFrame(tick);
+  }
+
+  new ResizeObserver(() => {
+    measure();
+    draw(motion.matches ? timing.greeting+2 : elapsed);
+  }).observe(section);
+  motion.addEventListener('change',sync);
+  document.addEventListener('visibilitychange',sync);
+  measure();
+  draw(motion.matches ? timing.greeting+2 : 0);
+  sync();
+})();
+</script>
+<!-- Конец блока. -->
+</body>
+</html>
